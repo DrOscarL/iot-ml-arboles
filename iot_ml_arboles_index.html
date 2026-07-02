@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Explorador de Árboles de Decisión — IoT ML</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0A0E1A;
+    --surface: #111827;
+    --card:    #1F2937;
+    --border:  #374151;
+    --text:    #F9FAFB;
+    --muted:   #9CA3AF;
+    --teal:    #00C2A8;
+    --orange:  #FF7043;
+    --blue:    #5B7FFF;
+    --green:   #22C55E;
+    --amber:   #D97706;
+    --purple:  #A855F7;
+    --red:     #EF4444;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .logo {
+    width: 36px; height: 36px;
+    background: var(--teal);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  header h1 { font-size: 16px; font-weight: 600; }
+  header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .badge {
+    margin-left: auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ── Layout ── */
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 1.25rem;
+  }
+
+  /* ── Panel izquierdo ── */
+  .sidebar { display: flex; flex-direction: column; gap: 1rem; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+  .card h3 {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    margin-bottom: .75rem;
+  }
+
+  .ctrl { margin-bottom: .85rem; }
+  .ctrl:last-child { margin-bottom: 0; }
+  .ctrl-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .ctrl-label { font-size: 13px; color: var(--muted); }
+  .ctrl-val   { font-size: 14px; font-weight: 600; font-family: monospace; }
+
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--teal);
+    cursor: pointer;
+  }
+
+  .radio-group { display: flex; gap: 6px; margin-top: 6px; }
+  .radio-btn {
+    flex: 1;
+    padding: 5px 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: all .15s;
+  }
+  .radio-btn.active {
+    border-color: var(--teal);
+    color: var(--teal);
+    background: #00C2A812;
+  }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .stat {
+    background: var(--surface);
+    border-radius: 8px;
+    padding: .6rem .75rem;
+    text-align: center;
+  }
+  .stat-n { font-size: 20px; font-weight: 700; }
+  .stat-l { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  /* Feature importance bars */
+  .feat-bar { margin-bottom: .6rem; }
+  .feat-bar:last-child { margin-bottom: 0; }
+  .feat-name { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+  .feat-track {
+    background: var(--border);
+    border-radius: 4px;
+    height: 8px;
+    overflow: hidden;
+  }
+  .feat-fill { height: 100%; border-radius: 4px; transition: width .3s; }
+  .feat-pct  { font-size: 11px; color: var(--muted); margin-top: 2px; text-align: right; }
+
+  /* ── Panel derecho ── */
+  .right-panel { display: flex; flex-direction: column; gap: 1rem; }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--card);
+    border-radius: 10px;
+    padding: 4px;
+    width: fit-content;
+  }
+  .tab {
+    padding: 6px 16px;
+    border-radius: 7px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all .15s;
+    border: none;
+    background: none;
+  }
+  .tab.active {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .canvas-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+    flex: 1;
+  }
+  canvas { display: block; width: 100%; }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-top: .75rem;
+    flex-wrap: wrap;
+  }
+  .leg-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .leg-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+
+  /* Rules panel */
+  .rules-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .75rem 1rem;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.9;
+    color: var(--muted);
+    max-height: 340px;
+    overflow-y: auto;
+  }
+  .rules-box .kw   { color: var(--teal); font-weight: 600; }
+  .rules-box .val  { color: var(--amber); }
+  .rules-box .leaf { color: var(--green); font-weight: 600; }
+
+  /* Insight box */
+  .insight {
+    background: #00C2A810;
+    border: 1px solid #00C2A830;
+    border-radius: 8px;
+    padding: .75rem 1rem;
+    font-size: 12.5px;
+    color: var(--teal);
+    line-height: 1.6;
+  }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 1.5rem;
+    font-size: 11px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    margin-top: 1rem;
+  }
+  footer a { color: var(--teal); text-decoration: none; }
+
+  @media (max-width: 700px) {
+    main { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🌳</div>
+  <div>
+    <h1>Explorador de Árboles de Decisión</h1>
+    <p>Especialización IoT · Machine Learning · Semana 5</p>
+  </div>
+  <div class="badge">Dr. Oscar Loyola Valenzuela</div>
+</header>
+
+<main>
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+
+    <div class="card">
+      <h3>Parámetros del modelo</h3>
+
+      <div class="ctrl">
+        <div class="ctrl-row">
+          <span class="ctrl-label">max_depth</span>
+          <span class="ctrl-val" id="vd" style="color:var(--teal)">3</span>
+        </div>
+        <input type="range" id="sd" min="1" max="10" value="3" step="1">
+      </div>
+
+      <div class="ctrl">
+        <div class="ctrl-row">
+          <span class="ctrl-label">min_samples_leaf</span>
+          <span class="ctrl-val" id="vm" style="color:var(--orange)">5</span>
+        </div>
+        <input type="range" id="sm" min="1" max="40" value="5" step="1">
+      </div>
+
+      <div class="ctrl">
+        <div class="ctrl-row">
+          <span class="ctrl-label">criterion</span>
+          <span class="ctrl-val" id="vc" style="color:var(--purple)">gini</span>
+        </div>
+        <div class="radio-group">
+          <div class="radio-btn active" onclick="setCrit(0,this)">gini</div>
+          <div class="radio-btn" onclick="setCrit(1,this)">entropy</div>
+        </div>
+      </div>
+
+      <div class="ctrl" style="margin-top:.5rem">
+        <div class="ctrl-row">
+          <span class="ctrl-label">n_samples</span>
+          <span class="ctrl-val" id="vn" style="color:var(--blue)">150</span>
+        </div>
+        <input type="range" id="sn" min="40" max="400" value="150" step="10">
+        <button onclick="regenerate()"
+          style="margin-top:8px;width:100%;padding:6px;background:var(--surface);
+                 border:1px solid var(--border);border-radius:6px;color:var(--muted);
+                 font-size:12px;cursor:pointer">
+          🔀 Regenerar datos
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Métricas</h3>
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-n" id="s-acc" style="color:var(--green)">—</div>
+          <div class="stat-l">Accuracy</div>
+        </div>
+        <div class="stat">
+          <div class="stat-n" id="s-depth" style="color:var(--teal)">—</div>
+          <div class="stat-l">Profundidad</div>
+        </div>
+        <div class="stat">
+          <div class="stat-n" id="s-nodes" style="color:var(--blue)">—</div>
+          <div class="stat-l">Nodos</div>
+        </div>
+        <div class="stat">
+          <div class="stat-n" id="s-leaves" style="color:var(--amber)">—</div>
+          <div class="stat-l">Hojas</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Importancia de features</h3>
+      <div class="feat-bar">
+        <div class="feat-name">Temperatura (°C)</div>
+        <div class="feat-track">
+          <div class="feat-fill" id="fi-0" style="background:var(--teal);width:50%"></div>
+        </div>
+        <div class="feat-pct" id="fp-0">—</div>
+      </div>
+      <div class="feat-bar">
+        <div class="feat-name">Vibración (mm/s)</div>
+        <div class="feat-track">
+          <div class="feat-fill" id="fi-1" style="background:var(--orange);width:50%"></div>
+        </div>
+        <div class="feat-pct" id="fp-1">—</div>
+      </div>
+    </div>
+
+    <div class="insight" id="insight-box">
+      Ajusta los parámetros y observa cómo cambia la frontera de decisión.
+    </div>
+
+  </aside>
+
+  <!-- ── Right panel ── -->
+  <div class="right-panel">
+
+    <div class="tabs">
+      <button class="tab active" onclick="setTab('frontera',this)">🗺 Frontera</button>
+      <button class="tab" onclick="setTab('overfitting',this)">📈 Overfitting</button>
+      <button class="tab" onclick="setTab('reglas',this)">📋 Reglas IF-THEN</button>
+    </div>
+
+    <div class="canvas-card" id="canvas-wrap">
+      <canvas id="cv" height="380"></canvas>
+      <div class="legend" id="legend-wrap">
+        <div class="leg-item"><div class="leg-dot" style="background:#00C2A8"></div>Normal</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#FF7043"></div>Sobrecalentamiento</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#5B7FFF"></div>Falla mecánica</div>
+      </div>
+    </div>
+
+    <div class="rules-box" id="rules-box" style="display:none"></div>
+
+  </div>
+</main>
+
+<footer>
+  <p>Especialización IoT · Machine Learning ·
+    <a href="https://github.com/YOUR_USER/iot-ml-arboles" target="_blank">Ver en GitHub ↗</a>
+    · Dr. Oscar Loyola Valenzuela
+  </p>
+</footer>
+
+<script>
+// ── Paleta ───────────────────────────────────────────────────────────────────
+const COLS  = ['#00C2A8','#FF7043','#5B7FFF'];
+const COLSA = ['rgba(0,194,168,.18)','rgba(255,112,67,.18)','rgba(91,127,255,.18)'];
+const CNAMES= ['Normal','Sobrecalent.','Falla mecánica'];
+
+// ── Estado global ─────────────────────────────────────────────────────────────
+let DATA=[], LABELS=[], TREE=null, CRIT=0, TAB='frontera';
+let minT, maxT, minV, maxV;
+
+// ── Generador pseudoaleatorio reproducible ────────────────────────────────────
+function rng(seed){ let s=seed; return ()=>{ s=(s*1664525+1013904223)&0xffffffff; return(s>>>0)/0xffffffff; }; }
+
+function genData(n, seed=42){
+  const r=rng(seed); DATA=[]; LABELS=[];
+  const n0=Math.floor(n*.50), n1=Math.floor(n*.27), n2=n-n0-n1;
+  for(let i=0;i<n0;i++){ DATA.push([55+r()*18, 0.4+r()*.8]);  LABELS.push(0); }
+  for(let i=0;i<n1;i++){ DATA.push([78+r()*16, 0.5+r()*1.2]); LABELS.push(1); }
+  for(let i=0;i<n2;i++){ DATA.push([60+r()*20, 1.9+r()*1.6]); LABELS.push(2); }
+  minT=Math.min(...DATA.map(d=>d[0]))-2; maxT=Math.max(...DATA.map(d=>d[0]))+2;
+  minV=Math.min(...DATA.map(d=>d[1]))-.15; maxV=Math.max(...DATA.map(d=>d[1]))+.15;
+}
+
+// ── CART mínimo ───────────────────────────────────────────────────────────────
+function impurity(lbls){
+  if(!lbls.length) return 0;
+  const tot=lbls.length, c=[0,0,0];
+  lbls.forEach(l=>c[l]++);
+  if(CRIT===0) return 1-c.reduce((s,x)=>s+(x/tot)**2,0);
+  return -c.reduce((s,x)=>{ if(!x)return s; const p=x/tot; return s+p*Math.log2(p); },0);
+}
+
+function bestSplit(idx){
+  let bGain=-1,bF=-1,bT=-1;
+  for(let f=0;f<2;f++){
+    const vals=[...new Set(idx.map(i=>DATA[i][f]))].sort((a,b)=>a-b);
+    for(let v=0;v<vals.length-1;v++){
+      const t=(vals[v]+vals[v+1])/2;
+      const L=idx.filter(i=>DATA[i][f]<=t), R=idx.filter(i=>DATA[i][f]>t);
+      if(!L.length||!R.length) continue;
+      const n=idx.length;
+      const gain=impurity(idx.map(i=>LABELS[i]))
+                -(L.length/n)*impurity(L.map(i=>LABELS[i]))
+                -(R.length/n)*impurity(R.map(i=>LABELS[i]));
+      if(gain>bGain){bGain=gain;bF=f;bT=t;}
+    }
+  }
+  return {gain:bGain,f:bF,t:bT};
+}
+
+function majority(idx){ const c=[0,0,0]; idx.forEach(i=>c[LABELS[i]]++); return c.indexOf(Math.max(...c)); }
+
+function build(idx,d,maxD,minL){
+  const cls=majority(idx);
+  if(d>=maxD||idx.length<=minL||impurity(idx.map(i=>LABELS[i]))<.005)
+    return {leaf:true,cls,n:idx.length};
+  const {gain,f,t}=bestSplit(idx);
+  if(gain<=0) return {leaf:true,cls,n:idx.length};
+  const L=idx.filter(i=>DATA[i][f]<=t), R=idx.filter(i=>DATA[i][f]>t);
+  if(!L.length||!R.length) return {leaf:true,cls,n:idx.length};
+  return {leaf:false,f,t,cls,n:idx.length,
+    left:build(L,d+1,maxD,minL), right:build(R,d+1,maxD,minL)};
+}
+
+function predict(node,x){ return node.leaf?node.cls:(x[node.f]<=node.t?predict(node.left,x):predict(node.right,x)); }
+function depth(node){  return node.leaf?0:1+Math.max(depth(node.left),depth(node.right)); }
+function nodes(node){  return node.leaf?1:1+nodes(node.left)+nodes(node.right); }
+function leaves(node){ return node.leaf?1:leaves(node.left)+leaves(node.right); }
+
+// Feature importance acumulada
+function accumImportance(node,imp,tot){
+  if(node.leaf) return;
+  const gain=impurity(Array.from({length:tot},(_,i)=>i)
+    .filter(i=>predict(TREE,DATA[i])!==undefined?true:true)
+    .map(i=>LABELS[i]));
+  imp[node.f]+= (node.n/tot);
+  accumImportance(node.left,imp,tot);
+  accumImportance(node.right,imp,tot);
+}
+
+// Reglas texto
+function rules(node,depth,cond,FEAT){
+  const pad='  '.repeat(depth);
+  if(node.leaf){
+    const pct=((node.n/DATA.length)*100).toFixed(0);
+    return `${pad}<span class="leaf">→ ${CNAMES[node.cls]}</span>  <span style="color:var(--muted)">(n=${node.n}, ${pct}% datos)</span>\n`;
+  }
+  const f=FEAT[node.f], t=node.t.toFixed(1);
+  return rules(node.left, depth+1,'', FEAT)+
+         `${pad}<span class="kw">SI</span> ${f} <span class="kw">≤</span> <span class="val">${t}</span>  —arriba—\n`+
+         rules(node.right,depth+1,'',FEAT)+
+         `${pad}<span class="kw">SI</span> ${f} <span class="kw">></span> <span class="val">${t}</span>  —arriba—\n`;
+}
+
+function rulesClean(node,depth,FEAT){
+  if(node.leaf) return '  '.repeat(depth)+`→ CLASE: ${CNAMES[node.cls]} (n=${node.n})\n`;
+  const f=FEAT[node.f], t=node.t.toFixed(1), pad='  '.repeat(depth);
+  return pad+`SI ${f} ≤ ${t}:\n`+rulesClean(node.left,depth+1,FEAT)+
+         pad+`SI ${f} > ${t}:\n`+rulesClean(node.right,depth+1,FEAT);
+}
+
+// ── Dibujo ────────────────────────────────────────────────────────────────────
+function draw(){
+  const cv=document.getElementById('cv');
+  const W=cv.clientWidth||720; cv.width=W;
+  const ctx=cv.getContext('2d');
+  const H=380, PAD={l:52,r:16,t:12,b:40};
+  const PW=W-PAD.l-PAD.r, PH=H-PAD.t-PAD.b;
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#111827'; ctx.fillRect(0,0,W,H);
+
+  const tx=v=>PAD.l+((v-minT)/(maxT-minT))*PW;
+  const ty=v=>PAD.t+((maxV-v)/(maxV-minV))*PH;
+
+  if(TAB==='frontera' && TREE){
+    const RES=3;
+    for(let px=0;px<PW;px+=RES){
+      for(let py=0;py<PH;py+=RES){
+        const T=minT+(px/PW)*(maxT-minT);
+        const V=maxV-(py/PH)*(maxV-minV);
+        ctx.fillStyle=COLSA[predict(TREE,[T,V])];
+        ctx.fillRect(PAD.l+px, PAD.t+py, RES, RES);
+      }
+    }
+    // Grid
+    ctx.strokeStyle='rgba(255,255,255,.05)'; ctx.lineWidth=.5;
+    for(let t=Math.ceil(minT/5)*5;t<=maxT;t+=5){
+      ctx.beginPath(); ctx.moveTo(tx(t),PAD.t); ctx.lineTo(tx(t),PAD.t+PH); ctx.stroke();
+    }
+    for(let v=Math.ceil(minV*2)/2;v<=maxV;v+=.5){
+      ctx.beginPath(); ctx.moveTo(PAD.l,ty(v)); ctx.lineTo(PAD.l+PW,ty(v)); ctx.stroke();
+    }
+    // Puntos
+    DATA.forEach((d,i)=>{
+      const x=tx(d[0]), y=ty(d[1]);
+      ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2);
+      ctx.fillStyle=COLS[LABELS[i]]; ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=.8; ctx.stroke();
+    });
+    // Ejes
+    ctx.fillStyle='#6B7280'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+    for(let t=Math.ceil(minT/10)*10;t<=maxT;t+=10)
+      ctx.fillText(t+'°', tx(t), PAD.t+PH+18);
+    ctx.textAlign='right';
+    for(let v=Math.ceil(minV*2)/2;v<=maxV;v+=.5)
+      ctx.fillText(v.toFixed(1), PAD.l-6, ty(v)+4);
+    ctx.save(); ctx.translate(13,PAD.t+PH/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText('Vibración (mm/s)',0,0); ctx.restore();
+    ctx.textAlign='center';
+    ctx.fillText('Temperatura (°C)', PAD.l+PW/2, H-6);
+  }
+  else if(TAB==='overfitting'){
+    const maxD=10;
+    const depths_=Array.from({length:maxD},(_,i)=>i+1);
+    const all=Array.from({length:DATA.length},(_,i)=>i);
+    const curD=parseInt(document.getElementById('sd').value);
+    const accs=depths_.map(d=>{
+      const T=build(all,0,d,1);
+      return DATA.filter((_,i)=>predict(T,DATA[i])===LABELS[i]).length/DATA.length;
+    });
+
+    // Ejes
+    const bw=PW/(maxD+1);
+    ctx.fillStyle='rgba(255,255,255,.04)';
+    for(let g=0;g<=1;g+=.2){
+      const y=ty_g(g,PH,PAD);
+      ctx.strokeStyle='rgba(255,255,255,.06)'; ctx.lineWidth=.6;
+      ctx.beginPath(); ctx.moveTo(PAD.l,y); ctx.lineTo(PAD.l+PW,y); ctx.stroke();
+    }
+    depths_.forEach((d,i)=>{
+      const x=PAD.l+(i+.5)*bw;
+      const h=accs[i]*PH;
+      const isActive=d===curD;
+      ctx.fillStyle=isActive?'#5B7FFF':'rgba(91,127,255,.3)';
+      ctx.beginPath();
+      ctx.roundRect(x-bw*.28, PAD.t+PH-h, bw*.56, h, 4);
+      ctx.fill();
+      ctx.fillStyle=isActive?'#F9FAFB':'#9CA3AF';
+      ctx.font=(isActive?'bold ':'')+' 10px sans-serif';
+      ctx.textAlign='center';
+      ctx.fillText(d, x, PAD.t+PH+18);
+      ctx.fillText((accs[i]*100).toFixed(0)+'%', x, PAD.t+PH-h-5);
+    });
+    // Línea actual
+    const curX=PAD.l+(curD-.5)*bw;
+    ctx.strokeStyle='#FF7043'; ctx.lineWidth=1.5;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(curX,PAD.t); ctx.lineTo(curX,PAD.t+PH); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#FF7043'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('depth actual', curX, PAD.t+10);
+    // Labels
+    ctx.fillStyle='#6B7280'; ctx.textAlign='right'; ctx.font='10px sans-serif';
+    for(let g=0;g<=1;g+=.2)
+      ctx.fillText((g*100).toFixed(0)+'%', PAD.l-6, ty_g(g,PH,PAD)+4);
+    ctx.save(); ctx.translate(14,PAD.t+PH/2); ctx.rotate(-Math.PI/2);
+    ctx.fillStyle='#6B7280'; ctx.fillText('Accuracy (train)',0,0); ctx.restore();
+    ctx.textAlign='center';
+    ctx.fillText('max_depth', PAD.l+PW/2, H-6);
+  }
+}
+
+function ty_g(v,PH,PAD){ return PAD.t+(1-v)*PH; }
+
+// ── Update principal ──────────────────────────────────────────────────────────
+function update(){
+  const maxD=parseInt(document.getElementById('sd').value);
+  const minL=parseInt(document.getElementById('sm').value);
+  document.getElementById('vd').textContent=maxD;
+  document.getElementById('vm').textContent=minL;
+
+  const all=Array.from({length:DATA.length},(_,i)=>i);
+  TREE=build(all,0,maxD,minL);
+
+  const acc=(DATA.filter((_,i)=>predict(TREE,DATA[i])===LABELS[i]).length/DATA.length*100).toFixed(1)+'%';
+  document.getElementById('s-acc').textContent=acc;
+  document.getElementById('s-depth').textContent=depth(TREE);
+  document.getElementById('s-nodes').textContent=nodes(TREE);
+  document.getElementById('s-leaves').textContent=leaves(TREE);
+
+  // Feature importance (simple: contar splits por feature)
+  const imp=[0,0];
+  function countSplits(node){ if(node.leaf)return; imp[node.f]++; countSplits(node.left); countSplits(node.right); }
+  countSplits(TREE);
+  const tot=imp[0]+imp[1]||1;
+  [0,1].forEach(f=>{
+    const pct=(imp[f]/tot*100).toFixed(1)+'%';
+    document.getElementById(`fi-${f}`).style.width=pct;
+    document.getElementById(`fp-${f}`).textContent=pct;
+  });
+
+  // Insight dinámico
+  const d_=depth(TREE), l_=leaves(TREE);
+  let msg='';
+  if(d_<=2) msg='🟡 Árbol muy superficial — probablemente subajuste (underfitting). Sube max_depth.';
+  else if(d_>=7) msg='🔴 Árbol muy profundo — riesgo alto de overfitting. Las hojas tienen muy pocas muestras.';
+  else msg=`🟢 Árbol con ${d_} niveles y ${l_} hojas — balance razonable entre sesgo y varianza.`;
+  document.getElementById('insight-box').textContent=msg;
+
+  // Reglas
+  if(TAB==='reglas'){
+    const FEAT=['Temperatura (°C)','Vibración (mm/s)'];
+    document.getElementById('rules-box').textContent=rulesClean(TREE,0,FEAT);
+  }
+
+  draw();
+}
+
+function regenerate(){
+  const n=parseInt(document.getElementById('sn').value);
+  genData(n, Date.now()%9999);
+  update();
+}
+
+function setCrit(v, el){
+  CRIT=v;
+  document.getElementById('vc').textContent=v===0?'gini':'entropy';
+  document.querySelectorAll('.radio-btn').forEach((b,i)=>b.classList.toggle('active',i===v));
+  update();
+}
+
+function setTab(tab,el){
+  TAB=tab;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  const canvasWrap=document.getElementById('canvas-wrap');
+  const rulesBox=document.getElementById('rules-box');
+  const legendWrap=document.getElementById('legend-wrap');
+  if(tab==='reglas'){
+    canvasWrap.style.display='none'; rulesBox.style.display='block';
+    const FEAT=['Temperatura (°C)','Vibración (mm/s)'];
+    rulesBox.textContent=rulesClean(TREE,0,FEAT);
+  } else {
+    canvasWrap.style.display='block'; rulesBox.style.display='none';
+    legendWrap.style.display=tab==='frontera'?'flex':'none';
+  }
+  update();
+}
+
+// Sliders
+document.getElementById('sd').oninput=update;
+document.getElementById('sm').oninput=update;
+document.getElementById('sn').oninput=()=>{
+  document.getElementById('vn').textContent=document.getElementById('sn').value;
+};
+
+window.addEventListener('resize', ()=>{ if(TAB!=='reglas') draw(); });
+
+genData(150, 42);
+update();
+</script>
+</body>
+</html>
